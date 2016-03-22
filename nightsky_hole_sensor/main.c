@@ -38,6 +38,7 @@ int main(void) {
     External_setPCINT1Handler(*onHallSense);
 
     USART_init(RX_COMPLETION_INTERRUPT, 51);
+    USART_setRxCompletionInterruptListener(*onRxCompleted);
     fdevopen(*USART_sendData, NULL);
     sei();
     while (1) {        
