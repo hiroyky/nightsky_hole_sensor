@@ -9,57 +9,53 @@
 #include <avr/interrupt.h>
 #include "usart.h"
 
-static uint8_t (*recieveInterruptListener)(uint8_t data);
-static void (*sendInterruptListener)(void);
+static void (*rxCompletionInterruptListener)(uint8_t data);
+static void (*txCompletionInterruptListener)(void);
+static void (*dataRegisterEmptyInterruptListener)(void);
 
-void USART_init(USART_InitMode mode) {
-	// 倍速動作
-    UCSR0A |= _BV(U2X0);
+void USART_init(USART_InitMode mode, uint16_t baud) {
+    // ボーレート設定
+    UBRR0H = (uint8_t)(baud >> 8);
+    UBRR0L = (uint8_t)(baud);    
 
-	// 送受信許可と割り込み許可設定
-    switch (mode) {
-		case ALLOW_RECIEVE_INTERRUPT:
-		    UCSR0B = _BV(TXEN0) | _BV(RXCIE0) | _BV(RXEN0);
-		    break;
-		case ALLOW_SEND_INTERRUPT:
-		    UCSR0B = _BV(TXEN0) | _BV(UDRIE0) | _BV(RXEN0);
-		    break;
-		case ALLOW_SEND_INTERRUPT + ALLOW_RECIEVE_INTERRUPT:
-		    UCSR0B = _BV(TXEN0) | _BV(RXCIE0) | _BV(RXEN0) | _BV(UDRIE0);
-		    break;
-		default:
-		    UCSR0B = _BV(TXEN0) | _BV(RXEN0);
-		    break;
-	}
+    // フレーム形式の設定
+    // 8bitデータ長, ２停止ビット
+    UCSR0C = (1<< USBS0 | 3 << UCSZ00);
 
-	// ボーレート設定
-    //UBRR0H = 0;
-	//UBRR0L = 12;    /* 1MHzクロックにて9600bps */
-	UBRR0H = 0;
-	UBRR0L = 104;
+    // 送受信許可
+    UCSR0B = (1<<RXEN0)|(1<<TXEN0);
 
-	 //uint16_t b = (F_CPU / (16UL * baud)) - 1;
-	 //UBRRH = (uint8_t)(b >> 8);
-     //UBRRL = (uint8_t)b;
+    // 割り込み許可
+    if (mode & RX_COMPLETION_INTERRUPT == 1) {
+        UCSR0B |= (1<<RXCIE0);
+    }
+    if (mode & TX_COMPLETION_INTERRUPT == 1) {
+        UCSR0B |= (1<<TXCIE0);
+    }
+    if (mode & DATA_REGISTER_EMPTY_INTERRUPT == 1) {
+        UCSR0B |= (1<<UDRIE0);
+    }
 }
 
-void USART_setBaudrate(uint8_t highBit, uint8_t lowBit) {
-    UBRR0H = highBit;
-	UBRR0L = lowBit;	
+void USART_setRxCompletionInterruptListener(void (*func)(uint8_t data)) {
+    rxCompletionInterruptListener = func;
+}
+
+void USART_setTxCompletionInterruptListener(void (*func)(void)) {
+    txCompletionInterruptListener = func;
+}
+
+void USART_setDataRegisterEmptyInterruptListener(void (*func)(void)) {
+    dataRegisterEmptyInterruptListener = func;
 }
 
 void USART_sendData(uint8_t data) {
-    loop_until_bit_is_set(UCSR0A, UDRE0);   // UDRE0ビットが1になるまで待機
+    loop_until_bit_is_set(UCSR0A, UDRE0);
 	UDR0 = data;
 }
 
 uint8_t USART_recieveData() {
     loop_until_bit_is_set(UCSR0A, RXC0);
-
-	/*if ((UCSRA & _BV(FE)) || (UCSRA & _BV(DOR))) {
-        return -1;
-    }*/
-
 	return UDR0;
 }
 
@@ -74,28 +70,24 @@ void USART_binaryPrintf(unsigned char dat) {
 	printf("\n");
 }
 
-void USART_setSendInterruptListener(void (*func)(void))  {
-    recieveInterruptListener = func;
-}
-
-void USART_setRecieveInterruptListener(void (*func)(uint8_t data)) {
-    recieveInterruptListener = func;
-}
-
 /**
- * 受信割り込み動作
+ * 受信完了割り込み動作
  */
 ISR(USART_RX_vect) {
-    if(bit_is_clear(UCSR0A, FE0)) {
-		//cli();
-		recieveInterruptListener(UDR0);
-		//sei();
-	}
+    uint8_t data = USART_recieveData();
+    rxCompletionInterruptListener(data);    
 }
 
 /**
- * 送信割り込み動作
+ * 送信完了割り込み動作
  */
+ISR(USART_TX_vect) {
+    txCompletionInterruptListener();
+}
+
+/**
+* 送信データレジスタ空フラグの割り込み動作
+*/
 ISR(USART_UDRE_vect) {
-    sendInterruptListener();
+    dataRegisterEmptyInterruptListener();
 }

@@ -16,48 +16,57 @@
 
 typedef enum USART_InitMode {
 	// 通常USART通信
-	NOMAL = 0,
-	// 送信割り込みを許可でUSART通信初期化
-	ALLOW_SEND_INTERRUPT = 1,
-	// 受信割り込みを許可でUSART通信初期化
-	ALLOW_RECIEVE_INTERRUPT = 2,
-	// 送信受信共に割り込みを許可でUSART通信初期化
-	ALLOW_SEND_AND_RECIEVE_INTERRUPT = 3
+	NOMAL = 0x00,
+	// 受信完了割り込みを許可
+	RX_COMPLETION_INTERRUPT = 0x01,
+    // 送信完了割り込みを許可
+    TX_COMPLETION_INTERRUPT = 0x02,
+	// 送信データレジスタが空になった割り込みを許可
+	DATA_REGISTER_EMPTY_INTERRUPT = 0x04
 } USART_InitMode;
 
 
 /**
-* USARTを初期化します。
-* 必要に応じてUSART_sendBaudrate()でボーレートを設定する必要があります
+* USARTを初期化します。非同期動作
+* ボーレート参考値:
+* - 8MHz, 9600: 51
+* - 1MHz, 9600: 6 
+* @param baud ボーレート指定値(値はデータシート参照のこと。)
 * @param mode 割り込みを行うかどうかを指定します。
 */
-void USART_init(USART_InitMode mode);
+void USART_init(USART_InitMode mode, uint16_t baud);
 
 /**
-* 通信におけるボーレートを指定します。
-* レジスタUBRR0H及びUBRR0Lに入力します。値はデータシートを参考にしてください。
-* @param highBit UBRR0Hの値
-* @param lobBit UBRR0Lの値
-* 参考値
-*  1MHz動作時：highBit = 0, lowBit = 12
-*  8MHz動作時：highBit = 0, lowBit = 104
+* USART受信完了の割り込み時に実行する関数を設定します。
+* @param func 実行する関数
 */
-void USART_setBaudrate(uint8_t highBit, uint8_t lowBit);
+void USART_setRxCompletionInterruptListener(void (*func)(uint8_t data));
 
+/**
+* USART送信完了の割り込みに実行する関数を設定します。
+* @param func 実行する関数
+*/
+void USART_setTxCompletionInterruptListener(void (*func)(void));
+
+/**
+* USARTで送信データレジスタが空き状態になり、
+* 送信準備が整った時の割り込みに実行する関数を設定します。
+* @param func 実行する関数
+*/
+void USART_setDataRegisterEmptyInterruptListener(void (*func)(void));
+
+/**
+* 1バイトのデータを送信します。
+* @param data 送信データ
+*/
 void USART_sendData(uint8_t data);
 
+/**
+* データを受信します。
+* @return 受信データ
+*/
 uint8_t USART_recieveData();
 
-
-
 void USART_binaryPrintf(unsigned char dat);
-
-void USART_setSendInterruptListener(void (*func)(void));
-
-void USART_setRecieveInterruptListener(void (*func)(uint8_t data));
-
-
-
-
 
 #endif /* USART_H_ */

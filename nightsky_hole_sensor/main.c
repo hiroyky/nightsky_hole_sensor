@@ -9,12 +9,8 @@
 #include <stdio.h>
 #include <ExternalInterrupt.h>
 #include <usart.h>
-#include <timer.h>
 
-#define TIRE_DIAMETER_INCH 26.0
-static const unsigned int TIRE_CIRCUMFERENCE_CM = (TIRE_DIAMETER_INCH * 2.54) * 2.0 * 3.14;
-
-unsigned int hallCount = 0;
+uint16_t hallCount = 0;
 
 void initializeIO() {
     DDRB = 0xFF;
@@ -30,12 +26,8 @@ void onHallSense() {
     hallCount++;
 }
 
-/**
-* タイマ割り込みでの動作。 8msec毎に実行される
-*/
-void onTimer() {
-    unsigned int diffDistance = (hallCount >> 1) * TIRE_CIRCUMFERENCE_CM;
-    printf("%u\n", diffDistance);
+void onRxCompleted(uint8_t data) {
+    printf("%d\n", hallCount);
     hallCount = 0;
 }
 
@@ -44,24 +36,11 @@ int main(void) {
 
     External_initPCINT1(0xFF);
     External_setPCINT1Handler(*onHallSense);
-        TCCR1A = 0;
-        TCCR1B = (1<<WGM12)|(1<<CS12);    //クロックの分周指定(256分周),CTC動作指定
-        TCCR1C = 0;
-        TIMSK1 = (1<<OCIE1A);    //A比較一致割り込み許可
-        OCR1A  = 31250;        //カウントクロック数(比較一致)
-    //Timer1_init(Timer_A_NONE, Timer_B_NONE, Timer1_CTC_OCR, Timer_PRESCALER_256);
-    //Timer1_setTimerACriteria(31250);
-    //Timer1_setTimerCaptureCriteria(31250);
-    
-    
-    Timer1_setMatchAHandler(*onTimer);
-    //Timer1_setTimerInterruptEnable(Timer1_INTERRUPT_MATCH_A);
-    USART_init(NOMAL);
-    USART_setBaudrate(0, 104);
+
+    USART_init(RX_COMPLETION_INTERRUPT, 51);
     fdevopen(*USART_sendData, NULL);
     sei();
-    while (1) {
-        //printf("val: %d\n", bit_is_set(PINC, PINC0));
+    while (1) {        
     }
 }
 

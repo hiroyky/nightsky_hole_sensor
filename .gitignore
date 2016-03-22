@@ -2,3 +2,4 @@ Debug
 Release
 *.a
 *.o
+.vs/
