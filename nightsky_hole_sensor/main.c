@@ -27,7 +27,8 @@ void onHallSense() {
 }
 
 void onRxCompleted(uint8_t data) {
-    printf("%d\n", hallCount);
+    USART_sendData((uint8_t)(hallCount >> 8));
+    USART_sendData((uint8_t)hallCount);
     hallCount = 0;
 }
 
